@@ -1,14 +1,13 @@
 # SwiftRouter
 
-`SwiftRouter` is a lightweight Swift package for driving navigation with typed routes, shared app state, and optional URL-based deep linking.
+`SwiftRouter` is a lightweight Swift package for driving SwiftUI navigation with typed routes, shared app state, and deep linking.
 
 ## Features
 
-- Typed stack navigation with `push`, `replace`, `go`, and `back`
-- Shared route state that updates as paths are matched
-- URL hydration for deep links, universal links, and custom schemes
-- URL generation for routes and tab selections
-- A clean navigation model
+- Typed navigation
+- Shared router state
+- Deep linking for custom schemes and universal links
+- URL generation from routes
 
 ## Requirements
 
@@ -24,7 +23,7 @@ Add `SwiftRouter` to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/eriicafes/SwiftRouter.git", branch: "main")
+    .package(url: "https://github.com/eriicafes/SwiftRouter.git", from: "0.1.0")
 ]
 ```
 
@@ -37,6 +36,14 @@ Then include it in your target:
 )
 ```
 
+## AI Skills
+
+Install the SwiftRouter agent skills with:
+
+```sh
+npx skills add eriicafes/SwiftRouter
+```
+
 ## Core Concepts
 
 ### Route
@@ -46,25 +53,47 @@ A `Route` is the typed value that represents a screen in a navigation stack.
 ```swift
 import SwiftRouter
 
-enum SimpleRoute: Route {
-    case home
-    case user(String)
+enum AppRoute: Route {
+    case user(id: String)
+    case settings
 }
 ```
 
-Routes can also expose:
+Routes can define:
 
 - `State`: shared mutable state owned by the router
 - `Data`: data derived from the root route
 
-### Router Shape
+### Tab Selection
 
-SwiftRouter is built around two shapes:
+A `TabSelection` is the type that represents the selected tab in a `TabRouter`.
 
-- One `Router<Route>` for apps that use a single navigation stack
-- One `TabRouter<Tab>` for apps that use tabs, with one `Router<Route>` inside each tab stack
+```swift
+enum AppTab: TabSelection {
+    case home
+    case users
+}
+```
 
-It is recommended to have a single stack router, or a tab router that can have stack routers in its tabs.
+`TabSelection` can also define:
+
+- `State`: shared mutable state owned by the tab router
+- `Stack`: the available stack routers inside the tabs
+
+### Tab Route
+
+A `TabRoute` is a route that belongs to a specific tab.
+
+```swift
+enum UsersRoute: TabRoute {
+    case add
+    case user(id: String)
+
+    static var tab: AppTab { .users }
+}
+```
+
+> It is recommended to have a single [Stack Router](#stack-router), or a [Tab Router](#tab-router) that can have stack routers in its tabs.
 
 ### Root Route Data
 
@@ -72,11 +101,8 @@ The root route of a navigation stack does not have to be one of your route cases
 
 ```swift
 enum AppRoute: Route {
-    struct State {
-        var selectedUserID = ""
-    }
-
-    case home(String)
+    case home(title: String)
+    case user(id: String)
     case settings
 
     static func data(route: AppRoute?) -> RouteData<String> {
@@ -84,7 +110,7 @@ enum AppRoute: Route {
         case .home(let title):
             return .data(root: true, title)
         default:
-            return .data(root: false, "")
+            return .data(root: false, "Home")
         }
     }
 }
@@ -94,67 +120,41 @@ If the first route in the initial stack returns `.data(root: true, value)`, Swif
 
 ```swift
 let router = Router<AppRoute>(.init()) {
-    AppRoute.home("Home")
+    AppRoute.home(title: "Dashboard")
 }
 
-router.navigationPath.isEmpty
-router.data == "Home"
+router.navigationPath
+// []
+router.data
+// "Dashboard"
 ```
 
 That means the stack can be empty while the root route's data is still available through `router.data`.
 
-If you do not have an explicit root route, you can still react to the root path by using `screen(root:)` in `FromURLRoute` and updating state when `/` matches:
-
-```swift
-enum AppRoute: FromURLRoute {
-    struct State {
-        var showSheet = false
-    }
-
-    case user(String)
-
-    static func from(route: RouteMatch<Self>) {
-        route.screen(root: { url in
-            route.update { state in
-                state.showSheet = url.query("sheet") == "true"
-            }
-        })
-
-        route.screen(":id") { url in
-            Self.user(url.param("id"))
-        }
-    }
-}
-```
-
 ## Stack Router
 
-You can initialize a stack router in a few different ways.
+The default state for a router is `Void`, in which case you can initialize the router without passing state. If the route has its own state type, pass that state when creating the router. You can also initialize the router with default routes in its stack.
 
 ```swift
 // No state
-enum RouteWithoutState: Route {
-    case home
+enum AppRoute: Route {
+    case user(id: String)
+    case settings
 }
 
-let router = Router<RouteWithoutState>()
+let router = Router<AppRoute>()
 
-// State, no stack
-enum RouteWithState: Route {
+// State
+enum StatefulAppRoute: Route {
     struct State {
         var showSheet = false
     }
 
-    case home
+    case user(id: String)
     case settings
 }
 
-let stateRouter = Router<RouteWithState>(.init())
-
-// State and stack
-let stateAndStackRouter = Router<RouteWithState>(.init()) {
-    RouteWithState.settings
-}
+let stateRouter = Router<StatefulAppRoute>(.init())
 ```
 
 Available properties:
@@ -166,10 +166,16 @@ Available properties:
 
 ## Tab Router
 
-Use `TabRouter` when navigation is split across tabs.
+A tab router is initialized with an initial tab.
+
+Like `Router`, the default state for a tab router is `Void`, so state can be omitted when the tab selection uses `Void`. If the tab selection has its own state type, pass that state when creating the router.
 
 ```swift
 enum AppTab: TabSelection {
+    struct State {
+        var showSheet = false
+    }
+
     case home
     case users
 
@@ -179,64 +185,20 @@ enum AppTab: TabSelection {
 }
 
 enum UsersRoute: TabRoute {
-    typealias Tab = AppTab
+    typealias State = AppTab.State
 
-    case home
-    case user(String)
+    case add
+    case user(id: String)
 
     static var tab: AppTab { .users }
 }
 
-let router = TabRouter(initial: AppTab.home)
+let router = TabRouter(.init(), initial: AppTab.home)
 router.tab = .users
-router.users.push(.user("42"))
+router.users.push(.add)
 ```
 
-`TabRouter` caches nested routers, so repeated access to the same tab stack returns the same `Router` instance.
-
-You can pass the tab router through the environment and read it from tab content:
-
-```swift
-@main
-struct ExampleApp: App {
-    @State private var router = TabRouter(initial: AppTab.home)
-
-    var body: some Scene {
-        WindowGroup {
-            RootView()
-                .environment(router)
-        }
-    }
-}
-
-struct RootView: View {
-    @Environment(TabRouter<AppTab>.self) private var router
-
-    var body: some View {
-        @Bindable var router = router
-
-        TabView(selection: $router.tab) {
-            Tab("Home", value: AppTab.home) {
-                HomeView()
-            }
-
-            Tab("Users", value: AppTab.users) {
-                UsersView()
-            }
-        }
-    }
-}
-
-struct UsersView: View {
-    @Environment(TabRouter<AppTab>.self) private var router
-
-    var body: some View {
-        Button("Open User") {
-            router.users.push(.user("42"))
-        }
-    }
-}
-```
+`TabRouter` creates and caches nested stacks on access, so repeated access to the same tab stack returns the same `Router` instance.
 
 ## Navigation
 
@@ -247,11 +209,11 @@ struct UsersView: View {
 ```swift
 let router = Router<AppRoute>(.init())
 
-router.push(.user("42"))
-router.push(.user("100"))
+router.push(.user(id: "42"))
+router.push(.user(id: "100"))
 
 router.navigationPath
-// [.user("42"), .user("100")]
+// [.user(id: "42"), .user(id: "100")]
 ```
 
 ### Replace
@@ -260,12 +222,12 @@ router.navigationPath
 
 ```swift
 let router = Router<AppRoute>(.init()) {
-    AppRoute.user("42")
+    AppRoute.user(id: "42")
 }
 
-router.replace(.user("100"))
+router.replace(.user(id: "100"))
 router.navigationPath
-// [.user("100")]
+// [.user(id: "100")]
 ```
 
 ### Go
@@ -274,17 +236,17 @@ router.navigationPath
 
 ```swift
 let router = Router<AppRoute>(.init()) {
-    AppRoute.user("42")
-    AppRoute.user("100")
+    AppRoute.user(id: "42")
+    AppRoute.user(id: "100")
 }
 
-router.go(to: .user("42"))
+router.go(to: .user(id: "42"))
 router.navigationPath
-// [.user("42")]
+// [.user(id: "42")]
 
-router.go(to: .user("7"))
+router.go(to: .user(id: "7"))
 router.navigationPath
-// [.user("42"), .user("7")]
+// [.user(id: "42"), .user(id: "7")]
 ```
 
 ### Back
@@ -293,22 +255,21 @@ router.navigationPath
 
 ```swift
 let router = Router<AppRoute>(.init()) {
-    AppRoute.user("42")
-    AppRoute.user("100")
+    AppRoute.user(id: "42")
+    AppRoute.user(id: "100")
 }
 
 router.back()
 router.navigationPath
-// [.user("42")]
+// [.user(id: "42")]
 ```
 
 `back(root: true)` clears the pushed stack and returns to the root route:
 
 ```swift
 let router = Router<AppRoute>(.init()) {
-    AppRoute.home("Home")
-    AppRoute.user("42")
-    AppRoute.user("100")
+    AppRoute.user(id: "42")
+    AppRoute.user(id: "100")
 }
 
 router.back(root: true)
@@ -330,30 +291,30 @@ let router = Router<UsersRoute>(.init())
 
 router.push(path: "/42")
 router.navigationPath
-// [.user("42")]
+// [.user(id: "42")]
 ```
 
 `go(path:)` walks back to a matched route if it already exists, or pushes it if it does not:
 
 ```swift
 let router = Router<UsersRoute>(.init())
-router.push(.user("42"))
-router.push(.search("swift", ["ios"]))
+router.push(.user(id: "42"))
+router.push(.search("swift"))
 
 router.go(path: "/42")
 router.navigationPath
-// [.user("42")]
+// [.user(id: "42")]
 ```
 
 `replace(path:)` swaps the current top route with the matched route:
 
 ```swift
 let router = Router<UsersRoute>(.init())
-router.push(.user("42"))
+router.push(.user(id: "42"))
 
-router.replace(path: "/search?q=swift&tag=ios")
+router.replace(path: "/search?q=swift")
 router.navigationPath
-// [.search("swift", ["ios"])]
+// [.search("swift")]
 ```
 
 On `TabRouter`, these same methods can also switch tabs when the path matches a different tab:
@@ -366,25 +327,25 @@ router.tab
 // .users
 
 router.users.route
-// .user("42")
+// .user(id: "42")
 ```
 
 `go(path:)` and `replace(path:)` behave the same way for tabs: they select the matched tab, then forward the remaining path into that tab's stack router.
 
 ### Hydrate
 
-Hydrate sets the router from a parsed path. When `replace` is `true`, it replaces the current stack. When `replace` is `false` and the router already has a current route, it behaves like pushing the matched destination.
+Hydrate sets the router from a parsed path. When `replace` is `true`, it replaces the current stack. When `replace` is `false` and the router already has a current route, it pushes the matched destination.
 
 ```swift
 let router = Router<UsersRoute>(.init())
 
 router.hydrate(path: "/42")
 router.navigationPath
-// [.user("42")]
+// [.user(id: "42")]
 
 router.hydrate(path: "/search?q=swift", replace: true)
 router.navigationPath
-// [.search("swift", [])]
+// [.search("swift")]
 ```
 
 In SwiftUI you would usually call it from `onOpenURL`:
@@ -393,7 +354,8 @@ In SwiftUI you would usually call it from `onOpenURL`:
 @State private var router = Router<UsersRoute>(.init())
 
 var body: some View {
-    UsersView(router: router)
+    UsersView()
+        .environment(router)
         .onOpenURL { url in
             router.hydrate(url: url)
         }
@@ -402,45 +364,122 @@ var body: some View {
 
 If a path does not match, the state and stack stay unchanged.
 
+
+## Views
+
+You can pass the tab router through the environment and read it from tab content:
+
+```swift
+// Routes.swift
+import SwiftRouter
+
+enum AppTab: TabSelection {
+    case home
+    case users
+
+    struct Stack: TabStack {
+        let users = UsersRoute.self
+    }
+}
+
+enum UsersRoute: TabRoute {
+    case add
+    case user(id: String)
+
+    static var tab: AppTab { .users }
+}
+```
+
+```swift
+// ContentView.swift
+struct ContentView: View {
+    @State private var router = TabRouter(initial: AppTab.home)
+
+    var body: some View {
+        TabView(selection: $router.tab) {
+            Tab("Home", value: AppTab.home) {
+                HomeView()
+            }
+
+            Tab("Users", value: AppTab.users) {
+                UsersView()
+                    .environment(router.users)
+            }
+        }
+        .environment(router)
+    }
+}
+```
+
+```swift
+// Screens/UsersView.swift
+struct UsersView: View {
+    @Environment(Router<UsersRoute>.self) private var router
+
+    var body: some View {
+        @Bindable var router = router
+
+        NavigationStack(path: $router.navigationPath) {
+            UsersListView()
+                .navigationDestination(for: UsersRoute.self) { route in
+                    switch route {
+                    case .add:
+                        AddUserView()
+                    case .user(id: let id):
+                        UserDetailView(id: id)
+                    }
+                }
+        }
+    }
+}
+```
+
 ## URL Parsing
 
 SwiftRouter can parse URLs into navigation state, and turn navigation state back into URLs.
+
+You can conform your routes in one direction or both:
+
+- Use `FromURLRoute` or `FromURLTabSelection` if your route only needs to parse URLs into routes and state.
+- Use `IntoURLRoute` or `IntoURLTabSelection` if your route only needs to turn routes into URLs.
+- Use `URLRoute` or `URLTabSelection` if your route needs to do both.
+
+Prefer putting URL conformances in extensions so the route definition stays focused on the route shape.
 
 ### Parse From URL
 
 Conform a route to `FromURLRoute` to decode paths into routes and state updates.
 
 ```swift
-enum UsersRoute: FromURLRoute {
-    struct State {
-        var selectedUserID = ""
-        var search = ""
-        var tags: [String] = []
-    }
+enum AppRoute: Route {
+    case settings
+    case users(UsersRoute)
+}
 
-    case home
-    case user(String)
-    case search(String, [String])
+enum UsersRoute: Route {
+    case add
+    case user(id: String)
+    case search(String)
+}
+```
 
+```swift
+extension AppRoute: FromURLRoute {
     static func from(route: RouteMatch<Self>) {
-        route.screen("", .home)
+        route.screen("settings", .settings)
+        route.screen("users", join: UsersRoute.self, Self.users)
+    }
+}
 
+extension UsersRoute: FromURLRoute {
+    static func from(route: RouteMatch<Self>) {
+        route.screen("add", .add)
         route.screen(":id") { url in
-            let id = url.param("id")
-            route.update { state in
-                state.selectedUserID = id
-            }
-            Self.user(id)
+            Self.user(id: url.param("id"))
         }
-
         route.screen("search") { url in
             let query = url.query("q")
-            let tags = url.query(all: "tag")
-            route.update { state in
-                state.search = query
-                state.tags = tags
-            }
-            Self.search(query, tags)
+            Self.search(query)
         }
     }
 }
@@ -450,17 +489,16 @@ enum UsersRoute: FromURLRoute {
 
 - `url.param("id")`: reads a matched path parameter.
 - `url.query("q")`: reads the first value for a query item.
-- `url.query(all: "tag")`: reads all values for a repeated query item.
 
 Parse into a router from a path or URL:
 
 ```swift
-let router = Router<UsersRoute>(.init())
+let router = Router<AppRoute>()
 
-router.hydrate(path: "/search?q=swift&tag=ios&tag=swiftui")
-router.hydrate(url: URL(string: "myapp://search?q=swift")!)
+router.hydrate(path: "/users/search?q=swift")
+router.hydrate(url: URL(string: "myapp://users/search?q=swift")!)
 router.hydrate(
-    url: URL(string: "https://example.com/search?q=swift")!,
+    url: URL(string: "https://example.com/users/search?q=swift")!,
     replace: true
 )
 ```
@@ -468,23 +506,17 @@ router.hydrate(
 When hydrate is replacing the stack, one match can also produce more than one route:
 
 ```swift
-enum AppRoute: FromURLRoute {
-    struct State {
-        var selectedUserID = ""
-        var showFilters = false
-    }
-
-    case user(String)
-    case filters
-
+extension UsersRoute: FromURLRoute {
     static func from(route: RouteMatch<Self>) {
-        route.screen("shortcut") { _ in
-            route.update { state in
-                state.selectedUserID = "42"
-                state.showFilters = true
-            }
-            Self.user("42")
-            Self.filters
+        route.screen("add", .add)
+        route.screen(":id") { url in
+            let id = url.param("id")
+            Self.search(id)  // Added search route.
+            Self.user(id: id)
+        }
+        route.screen("search") { url in
+            let query = url.query("q")
+            Self.search(query)
         }
     }
 }
@@ -502,44 +534,41 @@ enum AppRoute: FromURLRoute {
 }
 ```
 
-You can also nest a child `FromURLRoute` inside a parent route:
-
-```swift
-enum AppRoute: FromURLRoute {
-    typealias State = UsersRoute.State
-
-    case users(UsersRoute)
-
-    static func from(route: RouteMatch<Self>) {
-        route.screen("users", join: UsersRoute.self, AppRoute.users)
-    }
-}
-```
-
 #### Tabs
 
 Tab parsing works through the tab selection type:
 
 ```swift
-enum AppTab: URLTabSelection {
+enum AppTab: TabSelection {
     case home
     case users
 
     struct Stack: TabStack {
         let users = UsersRoute.self
     }
+}
 
+enum UsersRoute: TabRoute {
+    case add
+    case user(id: String)
+
+    static var tab: AppTab { .users }
+}
+```
+
+```swift
+extension AppTab: FromURLTabSelection {
     static func from(route: TabRouteMatch<Self>) {
         route.tab("", .home)
         route.tab("users", UsersRoute.self)
     }
+}
 
-    func into(route: TabRouteURL<Self>) -> String {
-        switch self {
-        case .home:
-            return route.path()
-        case .users:
-            return route.path("users", join: UsersRoute.self)
+extension UsersRoute: FromURLRoute {
+    static func from(route: RouteMatch<Self>) {
+        route.screen("add", .add)
+        route.screen(":id") { url in
+            Self.user(id: url.param("id"))
         }
     }
 }
@@ -560,40 +589,40 @@ router.tab
 Conform a route to `IntoURLRoute` to map it back into a path.
 
 ```swift
-enum UsersRoute: IntoURLRoute {
-    struct State {
-        var search = ""
-        var tags: [String] = []
-    }
+enum AppRoute: Route {
+    case settings
+    case users(UsersRoute)
+}
 
-    case home
-    case search(String, [String])
-
-    func into(route: RouteURL<Self>) -> String {
-        switch self {
-        case .home:
-            return route.path("home")
-        case .search(let query, let tags):
-            route.query("q", query)
-            route.query("tag", tags)
-            return route.path("search")
-        }
-    }
+enum UsersRoute: Route {
+    case add
+    case user(id: String)
+    case search(String)
 }
 ```
 
-Nested routes can compose URLs with `join`:
-
 ```swift
-enum AppRoute: IntoURLRoute {
-    typealias State = UsersRoute.State
-
-    case users(UsersRoute)
-
+extension AppRoute: IntoURLRoute {
     func into(route: RouteURL<Self>) -> String {
         switch self {
+        case .settings:
+            return route.path("settings")
         case .users(let usersRoute):
             return route.path("users", join: usersRoute)
+        }
+    }
+}
+
+extension UsersRoute: IntoURLRoute {
+    func into(route: RouteURL<Self>) -> String {
+        switch self {
+        case .add:
+            return route.path("add")
+        case .user(id: let id):
+            return route.path(id)
+        case .search(let query):
+            route.query("q", query)
+            return route.path("search")
         }
     }
 }
@@ -602,11 +631,11 @@ enum AppRoute: IntoURLRoute {
 Then:
 
 ```swift
-let router = Router<AppRoute>(.init(search: "swift", tags: ["ios"]))
-router.push(.users(.search("swift", ["ios"])))
+let router = Router<AppRoute>()
+router.push(.users(.search("swift")))
 
 let path = router.string()
-// "/users/search?q=swift&tag=ios"
+// "/users/search?q=swift"
 ```
 
 `RouteURL` available methods:
@@ -620,19 +649,25 @@ let path = router.string()
 Tab URLs are generated from the selected tab, which can delegate URL building to the active route inside that tab's stack:
 
 ```swift
-enum AppTab: URLTabSelection {
+enum AppTab: TabSelection {
     case home
     case users
 
     struct Stack: TabStack {
         let users = UsersRoute.self
     }
+}
 
-    static func from(route: TabRouteMatch<Self>) {
-        route.tab("", .home)
-        route.tab("users", UsersRoute.self)
-    }
+enum UsersRoute: TabRoute {
+    case add
+    case user(id: String)
 
+    static var tab: AppTab { .users }
+}
+```
+
+```swift
+extension AppTab: IntoURLTabSelection {
     func into(route: TabRouteURL<Self>) -> String {
         switch self {
         case .home:
@@ -642,73 +677,27 @@ enum AppTab: URLTabSelection {
         }
     }
 }
+
+extension UsersRoute: IntoURLRoute {
+    func into(route: RouteURL<Self>) -> String {
+        switch self {
+        case .add:
+            return route.path("add")
+        case .user(id: let id):
+            return route.path(id)
+        }
+    }
+}
 ```
 
 Then:
 
 ```swift
 let router = TabRouter(initial: AppTab.users)
-router.users.push(.user("42"))
+router.users.push(.user(id: "42"))
 
 let path = router.string()
 // "/users/42"
-```
-
-### Conforming Your Routes
-
-You can conform your routes in one direction or both:
-
-- Use `FromURLRoute` if your route only needs to parse URLs into routes and state.
-- Use `IntoURLRoute` if your route only needs to turn routes into URLs.
-- Use `URLRoute` if your route needs to do both.
-
-```swift
-enum UsersRoute: URLRoute {
-    struct State {
-        var selectedUserID = ""
-        var search = ""
-        var tags: [String] = []
-    }
-
-    case home
-    case user(String)
-    case search(String, [String])
-
-    static func from(route: RouteMatch<Self>) {
-        route.screen("", .home)
-
-        route.screen(":id") { url in
-            let id = url.param("id")
-            route.update { state in
-                state.selectedUserID = id
-            }
-            Self.user(id)
-        }
-
-        route.screen("search") { url in
-            let query = url.query("q")
-            let tags = url.query(all: "tag")
-            route.update { state in
-                state.search = query
-                state.tags = tags
-            }
-            Self.search(query, tags)
-        }
-    }
-
-    func into(route: RouteURL<Self>) -> String {
-        switch self {
-        case .home:
-            return route.path()
-        case .user(let id):
-            return route.path(id)
-        case .search(let query, let tags):
-            route.query("q", query)
-            route.query("tag", tags)
-            return route.path("search")
-        }
-    }
-}
 ```
 
 ## Observation
@@ -732,15 +721,17 @@ enum AppRoute: FromURLRoute {
     }
 }
 
-@State private var router = Router<AppRoute>(.init())
+struct HomeView: View {
+    @Environment(Router<AppRoute>.self) private var router
 
-var body: some View {
-    @Bindable var router = router
+    var body: some View {
+        @Bindable var router = router
 
-    HomeView()
-        .sheet(isPresented: $router.state.showSheet) {
-            SettingsView()
-        }
+        HomeContentView()
+            .sheet(isPresented: $router.state.showSheet) {
+                SettingsView()
+            }
+    }
 }
 ```
 
