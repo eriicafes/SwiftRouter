@@ -28,22 +28,27 @@ enum RouterState<State> {
 }
 
 @Observable
+/// A stack router that owns navigation state for a single route type.
 public final class Router<T: Route> {
-    typealias State = T.State
+    public typealias State = T.State
 
-    var _state: RouterState<T.State>
-    public var navigationPath: [T] = []
     fileprivate var rootRoute: T?
 
+    var _state: RouterState<T.State>
+    /// Shared state owned by this router.
     public var state: T.State {
         get { _state.get() }
         set { _state.set(newValue) }
     }
+    /// The pushed routes above the root view.
+    public var navigationPath: [T] = []
 
+    /// The current route, including the root route when the stack is empty.
     public var route: T? {
         navigationPath.last ?? rootRoute
     }
 
+    /// Data derived from the root route.
     public var data: T.Data {
         switch T.data(route: rootRoute) {
         case .data(_, let value):
@@ -56,6 +61,7 @@ public final class Router<T: Route> {
         apply(stack: stack)
     }
 
+    /// Creates a router with shared state and an initial stack derived from that state.
     public init(
         _ state: T.State,
         @RouteBuilder<T> _ stack: (T.State) -> [T]
@@ -64,6 +70,7 @@ public final class Router<T: Route> {
         apply(stack: stack(state))
     }
 
+    /// Creates a router with shared state and an optional initial stack.
     public convenience init(
         _ state: T.State,
         @RouteBuilder<T> _ stack: () -> [T] = { [] }
@@ -71,16 +78,19 @@ public final class Router<T: Route> {
         self.init(state, { _ in return stack() })
     }
 
+    /// Creates a router with an optional initial stack.
     public convenience init(
         @RouteBuilder<T> _ stack: () -> [T] = { [] }
     ) where T.State == Void {
         self.init((), stack)
     }
 
+    /// Pushes a route onto the top of the navigation stack.
     public func push(_ route: T) {
         navigationPath.append(route)
     }
 
+    /// Pops the current route, or clears the stack when `root` is `true`.
     public func back(root: Bool = false) {
         if root {
             navigationPath.removeAll()
@@ -91,6 +101,7 @@ public final class Router<T: Route> {
         }
     }
 
+    /// Navigates to an existing route in the stack, or pushes it if not found.
     public func go(to route: T) {
         guard let index = navigationPath.lastIndex(of: route) else {
             navigationPath.append(route)
@@ -99,6 +110,7 @@ public final class Router<T: Route> {
         navigationPath.removeSubrange(navigationPath.index(after: index)...)
     }
 
+    /// Replaces the current route with a new route.
     public func replace(_ route: T) {
         if !navigationPath.isEmpty {
             navigationPath.removeLast()
@@ -131,6 +143,7 @@ extension Router: URLRouter where T: FromURLRoute {
         return (match.updateState, value)
     }
 
+    /// Parses a path and pushes the matched route.
     @discardableResult
     public func push(path: String) -> Bool {
         guard let destination = destination(path: path) else {
@@ -141,6 +154,7 @@ extension Router: URLRouter where T: FromURLRoute {
         return true
     }
 
+    /// Parses a path and navigates to the matched route, or pushes it if not found.
     @discardableResult
     public func go(path: String) -> Bool {
         guard let destination = destination(path: path) else {
@@ -151,6 +165,7 @@ extension Router: URLRouter where T: FromURLRoute {
         return true
     }
 
+    /// Parses a path and replaces the current route with the matched route.
     @discardableResult
     public func replace(path: String) -> Bool {
         guard let destination = destination(path: path) else {
@@ -161,6 +176,7 @@ extension Router: URLRouter where T: FromURLRoute {
         return true
     }
 
+    /// Parses a URL and updates the router from it.
     @discardableResult
     public func hydrate(url: URL, replace: Bool = false) -> Bool {
         var components =
@@ -185,6 +201,7 @@ extension Router: URLRouter where T: FromURLRoute {
         return hydrate(path: path, replace: replace)
     }
 
+    /// Parses a path and updates the router from it.
     @discardableResult
     public func hydrate(path: String, replace: Bool = false) -> Bool {
         if !replace && route != nil {
@@ -204,6 +221,7 @@ extension Router: URLRouter where T: FromURLRoute {
 }
 
 extension Router where T: IntoURLRoute {
+    /// Generates a URL path string for the current route.
     public func string() -> String {
         return self.route?.into(route: RouteURL(state: state)) ?? "/"
     }

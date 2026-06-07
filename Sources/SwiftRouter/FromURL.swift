@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// Parsed path and query input passed into URL matching handlers.
 public final class RouteURLInput {
     private let params: [String: String]
     private let queryItems: [URLQueryItem]?
@@ -16,14 +17,17 @@ public final class RouteURLInput {
         self.queryItems = queryItems
     }
 
+    /// Returns a matched path parameter or a fallback value.
     public func param(_ key: String, fallback: String = "") -> String {
         params[key] ?? fallback
     }
 
+    /// Returns the first value for a query item or a fallback value.
     public func query(_ key: String, fallback: String = "") -> String {
         queryItems?.first { $0.name == key }?.value ?? fallback
     }
 
+    /// Returns all values for a query item.
     public func query(all key: String) -> [String] {
         queryItems?
             .filter { $0.name == key }
@@ -31,10 +35,7 @@ public final class RouteURLInput {
     }
 }
 
-public protocol FromURLRoute: Route {
-    static func from(route: RouteMatch<Self>)
-}
-
+/// Input used to match routes from a URL path.
 public final class RouteMatch<T: FromURLRoute> {
     private let segments: [String]
     private let queryItems: [URLQueryItem]?
@@ -53,12 +54,14 @@ public final class RouteMatch<T: FromURLRoute> {
         self.queryItems = components?.queryItems
     }
 
+    /// Applies a state update when the current match succeeds.
     @discardableResult
     public func update(_ fn: @escaping (inout T.State) -> Void) -> [T] {
         updates.append(fn)
         return []
     }
 
+    /// Matches the root path and runs a side-effect handler.
     public func screen(root handler: @escaping ((RouteURLInput) -> Void)) {
         _screen(
             "",
@@ -68,6 +71,7 @@ public final class RouteMatch<T: FromURLRoute> {
             })
     }
 
+    /// Matches a fixed path and returns a single route.
     public func screen(
         _ pattern: String,
         _ route: T
@@ -75,6 +79,7 @@ public final class RouteMatch<T: FromURLRoute> {
         _screen(pattern, { _, _ in [route] })
     }
 
+    /// Matches a path and builds one or more routes from the parsed input.
     public func screen(
         _ pattern: String,
         @RouteBuilder<T> _ stack: @escaping (RouteURLInput) -> [T]
@@ -86,6 +91,7 @@ public final class RouteMatch<T: FromURLRoute> {
             })
     }
 
+    /// Matches a path prefix and builds routes using the remaining unmatched path.
     public func screen(
         _ pattern: String,
         @RouteBuilder<T> _ stack: @escaping (RouteURLInput, String) -> [T]
@@ -98,6 +104,7 @@ public final class RouteMatch<T: FromURLRoute> {
             })
     }
 
+    /// Matches a path prefix and delegates the remaining path to another route type.
     public func screen<Sub: FromURLRoute>(
         _ pattern: String,
         fallback: Bool = false,
@@ -158,10 +165,7 @@ public final class RouteMatch<T: FromURLRoute> {
     }
 }
 
-public protocol FromURLTabSelection: TabSelection {
-    static func from(route: TabRouteMatch<Self>)
-}
-
+/// Input used to match tabs from a URL path.
 public final class TabRouteMatch<T: FromURLTabSelection> {
     private let segments: [String]
     private let queryItems: [URLQueryItem]?
@@ -183,10 +187,12 @@ public final class TabRouteMatch<T: FromURLTabSelection> {
         self.queryItems = components?.queryItems
     }
 
+    /// Applies a state update when the current tab match succeeds.
     public func update(_ fn: @escaping (inout T.State) -> Void) {
         updates.append(fn)
     }
 
+    /// Matches a fixed path and selects a tab directly.
     public func tab(
         _ pattern: String,
         _ tab: T
@@ -194,6 +200,7 @@ public final class TabRouteMatch<T: FromURLTabSelection> {
         _tab(pattern, { _, _ in (tab, nil) })
     }
 
+    /// Matches a path and resolves a tab from parsed input.
     public func tab(
         _ pattern: String,
         _ handler: @escaping (RouteURLInput) -> T?
@@ -208,6 +215,7 @@ public final class TabRouteMatch<T: FromURLTabSelection> {
             })
     }
 
+    /// Matches a path prefix and delegates the remaining path to a tab route type.
     public func tab<Route: TabRoute & FromURLRoute>(
         _ pattern: String,
         _ route: Route.Type,

@@ -40,7 +40,7 @@ Use:
 
 - `push(_:)` to append a route
 - `go(to:)` to walk back to an existing route or append it
-- `replace(_:)` to swap the current top route
+- `replace(_:)` to swap the current route
 - `back()` to pop one route
 - `back(root: true)` to clear the stack
 

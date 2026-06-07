@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.1
+
+### Minor Changes
+
+- Added primary associated type on `URLRouter` for shared `state`
+
 ## 0.1.0
 
 ### Minor Changes

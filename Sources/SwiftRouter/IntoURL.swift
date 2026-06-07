@@ -7,18 +7,18 @@
 
 import Foundation
 
-public protocol IntoURLRoute: Route {
-    func into(route: RouteURL<Self>) -> String
-}
-
+/// Input used to build path and query output for a route.
 public final class RouteURL<T: IntoURLRoute> {
     private var queryItems: [URLQueryItem] = []
+    /// Shared state available while building the URL.
     public var state: T.State
 
+    /// Creates a URL builder with the current router state.
     public init(state: T.State) {
         self.state = state
     }
 
+    /// Appends or replaces a single query value.
     public func query(_ key: String, _ value: String, replace: Bool = false) {
         if replace {
             queryItems.removeAll { $0.name == key }
@@ -26,6 +26,7 @@ public final class RouteURL<T: IntoURLRoute> {
         queryItems.append(URLQueryItem(name: key, value: value))
     }
 
+    /// Appends or replaces repeated query values.
     public func query(
         _ key: String,
         _ values: [String],
@@ -41,10 +42,12 @@ public final class RouteURL<T: IntoURLRoute> {
         )
     }
 
+    /// Builds a normalized path from path components and accumulated query items.
     public func path(_ components: String...) -> String {
         return _path(queryItems: queryItems, components: components)
     }
 
+    /// Builds a path by joining another route's URL output onto the current path.
     public func path<Sub: IntoURLRoute>(_ components: String..., join: Sub) -> String
     where Sub.State == T.State {
         return _join(
@@ -53,20 +56,20 @@ public final class RouteURL<T: IntoURLRoute> {
     }
 }
 
-public protocol IntoURLTabSelection: TabSelection {
-    func into(route: TabRouteURL<Self>) -> String
-}
-
+/// Input used to build path and query output for a tab selection.
 public final class TabRouteURL<Tab: IntoURLTabSelection> {
     private var queryItems: [URLQueryItem] = []
     private let router: TabRouter<Tab>
+    /// Shared state available while building the URL.
     public var state: Tab.State
 
+    /// Creates a URL builder with the current tab router and shared state.
     public init(_ router: TabRouter<Tab>, state: Tab.State) {
         self.router = router
         self.state = state
     }
 
+    /// Appends or replaces a single query value.
     public func query(_ key: String, _ value: String, replace: Bool = false) {
         if replace {
             queryItems.removeAll { $0.name == key }
@@ -74,6 +77,7 @@ public final class TabRouteURL<Tab: IntoURLTabSelection> {
         queryItems.append(URLQueryItem(name: key, value: value))
     }
 
+    /// Appends or replaces repeated query values.
     public func query(
         _ key: String,
         _ values: [String],
@@ -89,10 +93,12 @@ public final class TabRouteURL<Tab: IntoURLTabSelection> {
         )
     }
 
+    /// Builds a normalized path from path components and accumulated query items.
     public func path(_ components: String...) -> String {
         return _path(queryItems: queryItems, components: components)
     }
 
+    /// Builds a path by joining the active route from a tab stack onto the current path.
     public func path<Route: TabRoute & IntoURLRoute>(
         _ components: String..., join: Route.Type
     ) -> String

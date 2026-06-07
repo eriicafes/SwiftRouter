@@ -23,7 +23,7 @@ Add `SwiftRouter` to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/eriicafes/SwiftRouter.git", from: "0.1.0")
+    .package(url: "https://github.com/eriicafes/SwiftRouter.git", from: "0.1.1")
 ]
 ```
 
@@ -211,7 +211,7 @@ router.navigationPath
 
 ### Replace
 
-`replace(_:)` removes the current top route and puts a new route in its place:
+`replace(_:)` swaps the current route with a new route:
 
 ```swift
 let router = Router<AppRoute>(.init()) {
@@ -244,7 +244,7 @@ router.navigationPath
 
 ### Back
 
-`back()` removes the current top route if the stack is not empty:
+`back()` removes the current route if the stack is not empty:
 
 ```swift
 let router = Router<AppRoute>(.init()) {
@@ -296,7 +296,7 @@ router.navigationPath
 // [.user(id: "42")]
 ```
 
-`replace(path:)` swaps the current top route with the matched route:
+`replace(path:)` swaps the current route with the matched route:
 
 ```swift
 let router = Router<UsersRoute>(.init())

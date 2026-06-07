@@ -10,24 +10,30 @@ import Observation
 
 @Observable
 @dynamicMemberLookup
+/// A router that coordinates tab selection and per-tab stack routers.
 public final class TabRouter<Tab: TabSelection> {
-    typealias State = Tab.State
+    public typealias State = Tab.State
 
-    public var state: Tab.State
-    public var tab: Tab
     fileprivate var tabStack: Tab.Stack?
     fileprivate var routers: [ObjectIdentifier: Any] = [:]
 
+    /// Shared state for the tab router and its child stack routers.
+    public var state: Tab.State
+    /// The currently selected tab.
+    public var tab: Tab
+
+    /// Creates a tab router with shared state and an initial tab.
     public init(_ state: Tab.State, initial: Tab) {
         self.state = state
         self.tab = initial
     }
 
+    /// Creates a tab router with an initial tab.
     public convenience init(initial: Tab) where Tab.State == Void {
         self.init((), initial: initial)
     }
 
-    public func stack<Route: TabRoute>(_ route: Route.Type) -> Router<Route>
+    func stack<Route: TabRoute>(_ route: Route.Type) -> Router<Route>
     where Route.Tab == Tab, Route.State == Tab.State {
         let key = ObjectIdentifier(route)
         if let router = routers[key] as? Router<Route> {
@@ -53,6 +59,7 @@ public final class TabRouter<Tab: TabSelection> {
 }
 
 extension TabRouter where Tab.Stack: TabStack {
+    /// Returns a stack router using the tab stack's dynamic member lookup.
     public subscript<Route: TabRoute>(
         dynamicMember keyPath: KeyPath<Tab.Stack, Route.Type>
     ) -> Router<Route>
@@ -69,7 +76,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
     private func destination(path: String) -> (
         updateState: (inout Tab.State) -> Void,
         tab: Tab,
-        router: (() -> (any URLRouter)?),
+        router: (() -> (any URLRouter<Tab.State>)?),
         path: String?
     )? {
         let match = TabRouteMatch<Tab>.match(path, tab: Tab.self)
@@ -85,11 +92,11 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
             )
         }
 
-        let router: (() -> (any URLRouter)?) = {
-            if !(self.routers[key] is any URLRouter) {
+        let router: (() -> (any URLRouter<Tab.State>)?) = {
+            if !(self.routers[key] is any URLRouter<Tab.State>) {
                 self.routers[key] = matchedRouter(self.routerState())
             }
-            guard let router = self.routers[key] as? any URLRouter else {
+            guard let router = self.routers[key] as? any URLRouter<Tab.State> else {
                 return nil
             }
             return router
@@ -100,6 +107,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         )
     }
 
+    /// Parses a path and pushes the matched route.
     @discardableResult
     public func push(path: String) -> Bool {
         guard let destination = destination(path: path) else {
@@ -120,6 +128,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         return true
     }
 
+    /// Parses a path and navigates to the matched route, or pushes it if not found.
     @discardableResult
     public func go(path: String) -> Bool {
         guard let destination = destination(path: path) else {
@@ -140,6 +149,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         return true
     }
 
+    /// Parses a path and replaces the current route with the matched route.
     @discardableResult
     public func replace(path: String) -> Bool {
         guard let destination = destination(path: path) else {
@@ -160,6 +170,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         return true
     }
 
+    /// Parses a URL and updates the tab router from it.
     @discardableResult
     public func hydrate(url: URL, replace: Bool = false) -> Bool {
         var components =
@@ -184,6 +195,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         return hydrate(path: path, replace: replace)
     }
 
+    /// Parses a path and updates the tab router from it.
     @discardableResult
     public func hydrate(path: String, replace: Bool = false) -> Bool {
         let match = TabRouteMatch.match(path, tab: Tab.self)
@@ -191,7 +203,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
             return false
         }
         if let (key, matchedRouter, path) = match.router {
-            if let router = routers[key] as? any URLRouter {
+            if let router = routers[key] as? any URLRouter<Tab.State> {
                 guard router.hydrate(path: path, replace: replace) else {
                     return false
                 }
@@ -206,6 +218,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
 }
 
 extension TabRouter where Tab: IntoURLTabSelection {
+    /// Generates a URL path string for the current tab and active stack route.
     public func string() -> String {
         return tab.into(route: TabRouteURL(self, state: state))
     }
