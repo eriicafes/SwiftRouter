@@ -31,7 +31,7 @@ struct RouterCoreTests {
 
         @Test("Extracts the root route and exposes root data from it")
         func extractsRootRouteAndExposesRootData() {
-            let router = Router<TestRoute>(TestState()) {
+            let router = Router<TestRoute>(state: TestState()) {
                 TestRoute.home
                 TestRoute.detail("42")
             }
@@ -48,7 +48,7 @@ struct RouterCoreTests {
             "Falls back to a nil current route when initialized with an empty stack"
         )
         func startsWithoutACurrentRouteWhenTheStackIsEmpty() {
-            let router = Router<TestRoute>(TestState())
+            let router = Router<TestRoute>(state: TestState())
 
             #expect(router.route == nil)
             #expect(router.navigationPath.isEmpty)
@@ -82,7 +82,7 @@ struct RouterCoreTests {
 
         @Test("Reuses the same router instance for repeated tab stack access")
         func reusesTheSameTabStackRouter() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
 
             let first = router.users
             let second = router.users

@@ -173,7 +173,12 @@ public final class TabRouteMatch<T: FromURLTabSelection> {
     private var handler:
         () -> (
             tab: T?,
-            router: (ObjectIdentifier, (RouterState<T.State>) -> Any, String)?
+            router:
+                (
+                    ObjectIdentifier,
+                    (RouterState<T.State>) -> any URLRouter<T.State>,
+                    String
+                )?
         ) = { (tab: nil, router: nil) }
     private var updates: [(inout T.State) -> Void] = []
 
@@ -232,7 +237,7 @@ public final class TabRouteMatch<T: FromURLTabSelection> {
                     return (nil, nil)
                 }
                 self.update { state in match.updateState(&state) }
-                let router: (RouterState<T.State>) -> Any = {
+                let router: (RouterState<T.State>) -> any URLRouter<T.State> = {
                     Router<Route>(state: $0, stack: match.stack)
                 }
                 return (Route.tab, (ObjectIdentifier(route), router, rest))
@@ -244,7 +249,12 @@ public final class TabRouteMatch<T: FromURLTabSelection> {
         matchRest: Bool = false,
         _ handler: @escaping (RouteURLInput, String) -> (
             tab: T?,
-            router: (ObjectIdentifier, (RouterState<T.State>) -> Any, String)?
+            router:
+                (
+                    ObjectIdentifier,
+                    (RouterState<T.State>) -> any URLRouter<T.State>,
+                    String
+                )?
         )
     ) {
         let result = _match(
@@ -264,7 +274,12 @@ public final class TabRouteMatch<T: FromURLTabSelection> {
     static func match(_ url: String, tab: T.Type) -> (
         updateState: (inout T.State) -> Void,
         tab: T?,
-        router: (ObjectIdentifier, (RouterState<T.State>) -> Any, String)?
+        router:
+            (
+                ObjectIdentifier,
+                (RouterState<T.State>) -> any URLRouter<T.State>,
+                String
+            )?
     ) {
         let route = TabRouteMatch<T>(url)
         T.from(route: route)

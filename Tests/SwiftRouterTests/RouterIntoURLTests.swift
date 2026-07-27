@@ -51,7 +51,7 @@ struct RouterIntoURLTests {
         )
         func normalizesPathsAndMergesQueries() {
             let router = Router<TestRoute>(
-                TestState(search: "swift", tags: ["ios", "swiftui"])
+                state: TestState(search: "swift", tags: ["ios", "swiftui"])
             ) {
                 TestRoute.search("swift", ["ios", "swiftui"])
             }
@@ -86,7 +86,7 @@ struct RouterIntoURLTests {
         @Test("Builds the expected URL from the current route")
         func buildsTheExpectedURLFromTheCurrentRoute() {
             let router = Router<TestRoute>(
-                TestState(search: "swift", tags: ["ios", "swiftui"])
+                state: TestState(search: "swift", tags: ["ios", "swiftui"])
             ) {
                 TestRoute.users(.search("swift", ["ios", "swiftui"]))
             }
@@ -97,7 +97,7 @@ struct RouterIntoURLTests {
 
         @Test("Falls back to the root path when no current route exists")
         func fallsBackToTheRootPathWhenNoCurrentRouteExists() {
-            let router = Router<TestRoute>(TestState())
+            let router = Router<TestRoute>(state: TestState())
 
             #expect(router.string() == "/")
         }
@@ -153,8 +153,8 @@ struct RouterIntoURLTests {
         @Test("Builds the expected URL from the selected tab and nested route")
         func buildsTheExpectedURLFromTheSelectedTabAndNestedRoute() {
             let router = TabRouter(
-                TestState(search: "swift", tags: ["ios", "swiftui"]),
-                initial: TestTab.users
+                initial: TestTab.users,
+                state: TestState(search: "swift", tags: ["ios", "swiftui"])
             )
             router.users.push(.search("swift", ["ios", "swiftui"]))
 
@@ -164,7 +164,7 @@ struct RouterIntoURLTests {
 
         @Test("Appends tab query values by default and replaces them when requested")
         func appendsTabQueryValuesByDefaultAndReplacesThemWhenRequested() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
             let route = TabRouteURL(router, state: TestState())
 
             route.query("q", "swift")
@@ -187,14 +187,14 @@ struct RouterIntoURLTests {
             "Falls back to the tab root path when the selected tab has no nested route"
         )
         func fallsBackToTheTabRootPathWhenTheSelectedTabHasNoNestedRoute() {
-            let router = TabRouter(TestState(), initial: TestTab.users)
+            let router = TabRouter(initial: TestTab.users, state: TestState())
 
             #expect(router.string() == "/users")
         }
 
         @Test("Builds the root path when the selected tab is the base path")
         func buildsTheRootPathWhenTheSelectedTabIsTheBasePath() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
 
             #expect(router.string() == "/")
         }

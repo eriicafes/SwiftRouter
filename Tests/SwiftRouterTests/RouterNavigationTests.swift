@@ -53,7 +53,7 @@ struct RouterNavigationTests {
 
     @Test("Mutates the stack with routes")
     func mutatesTheStackWithRoutes() {
-        let router = Router<TestRoute>(TestState()) {
+        let router = Router<TestRoute>(state: TestState()) {
             TestRoute.users(.user("one"))
             TestRoute.users(.user("two"))
         }
@@ -98,7 +98,7 @@ struct RouterNavigationTests {
 
     @Test("Mutates the stack and state from URL paths")
     func mutatesTheStackAndStateFromURLPaths() {
-        let router = Router<TestRoute>(TestState())
+        let router = Router<TestRoute>(state: TestState())
 
         #expect(router.push(path: "/users/41"))
         #expect(
@@ -132,7 +132,7 @@ struct RouterNavigationTests {
 
     @Test("Leaves state and stack untouched when path navigation fails")
     func leavesStateAndStackUntouchedWhenPathNavigationFails() {
-        let router = Router<TestRoute>(TestState())
+        let router = Router<TestRoute>(state: TestState())
         #expect(router.push(path: "/users/41"))
 
         let originalState = router.state

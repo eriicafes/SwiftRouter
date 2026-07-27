@@ -12,7 +12,22 @@ enum RouterState<State> {
     case value(State)
     case ref(initial: State, get: () -> State?, set: (State) -> Void)
 
-    mutating func get() -> State {
+    static func shared<Owner: AnyObject>(
+        with owner: Owner,
+        state keyPath: ReferenceWritableKeyPath<Owner, State>
+    ) -> RouterState<State> {
+        .ref(
+            initial: owner[keyPath: keyPath],
+            get: { [weak owner] in
+                owner?[keyPath: keyPath]
+            },
+            set: { [weak owner] state in
+                owner?[keyPath: keyPath] = state
+            }
+        )
+    }
+
+    func get() -> State {
         switch self {
         case .value(let state): return state
         case .ref(let initial, let get, _): return get() ?? initial
@@ -63,7 +78,7 @@ public final class Router<T: Route> {
 
     /// Creates a router with shared state and an initial stack derived from that state.
     public init(
-        _ state: T.State,
+        state: T.State,
         @RouteBuilder<T> _ stack: (T.State) -> [T]
     ) {
         self._state = .value(state)
@@ -72,17 +87,17 @@ public final class Router<T: Route> {
 
     /// Creates a router with shared state and an optional initial stack.
     public convenience init(
-        _ state: T.State,
+        state: T.State,
         @RouteBuilder<T> _ stack: () -> [T] = { [] }
     ) {
-        self.init(state, { _ in return stack() })
+        self.init(state: state, { _ in return stack() })
     }
 
     /// Creates a router with an optional initial stack.
     public convenience init(
         @RouteBuilder<T> _ stack: () -> [T] = { [] }
     ) where T.State == Void {
-        self.init((), stack)
+        self.init(state: (), stack)
     }
 
     /// Pushes a route onto the top of the navigation stack.

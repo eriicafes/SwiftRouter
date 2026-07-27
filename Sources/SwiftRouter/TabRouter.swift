@@ -23,14 +23,14 @@ public final class TabRouter<Tab: TabSelection> {
     public var tab: Tab
 
     /// Creates a tab router with shared state and an initial tab.
-    public init(_ state: Tab.State, initial: Tab) {
+    public init(initial: Tab, state: Tab.State) {
         self.state = state
         self.tab = initial
     }
 
     /// Creates a tab router with an initial tab.
     public convenience init(initial: Tab) where Tab.State == Void {
-        self.init((), initial: initial)
+        self.init(initial: initial, state: ())
     }
 
     func stack<Route: TabRoute>(_ route: Route.Type) -> Router<Route>
@@ -46,15 +46,7 @@ public final class TabRouter<Tab: TabSelection> {
     }
 
     private func routerState() -> RouterState<Tab.State> {
-        .ref(
-            initial: state,
-            get: { [weak self] in
-                self?.state
-            },
-            set: { [weak self] state in
-                guard let self else { return }
-                self.state = state
-            })
+        .shared(with: self, state: \.state)
     }
 }
 
@@ -76,8 +68,7 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
     private func destination(path: String) -> (
         updateState: (inout Tab.State) -> Void,
         tab: Tab,
-        router: (() -> (any URLRouter<Tab.State>)?),
-        path: String?
+        nested: (router: any URLRouter<Tab.State>, path: String)?
     )? {
         let match = TabRouteMatch<Tab>.match(path, tab: Tab.self)
         guard let tab = match.tab else {
@@ -87,23 +78,21 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         guard let (key, matchedRouter, path) = match.router
         else {
             return (
-                updateState: match.updateState,
-                tab: tab, router: { nil }, path: nil
+                updateState: match.updateState, tab: tab, nested: nil
             )
         }
 
-        let router: (() -> (any URLRouter<Tab.State>)?) = {
-            if !(self.routers[key] is any URLRouter<Tab.State>) {
-                self.routers[key] = matchedRouter(self.routerState())
+        var router: any URLRouter<Tab.State> {
+            if let cachedRouter = routers[key] as? any URLRouter<Tab.State> {
+                return cachedRouter
             }
-            guard let router = self.routers[key] as? any URLRouter<Tab.State> else {
-                return nil
-            }
-            return router
+            let newRouter = matchedRouter(routerState())
+            routers[key] = newRouter
+            return newRouter
         }
         return (
             updateState: match.updateState,
-            tab: tab, router: router, path: path
+            tab: tab, nested: (router: router, path: path)
         )
     }
 
@@ -113,14 +102,9 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         guard let destination = destination(path: path) else {
             return false
         }
-        guard let path = destination.path else {
-            destination.updateState(&state)
-            tab = destination.tab
-            return true
-        }
-
-        guard let router = destination.router(), router.push(path: path)
-        else {
+        if let nested = destination.nested,
+            !nested.router.push(path: nested.path)
+        {
             return false
         }
         destination.updateState(&state)
@@ -134,14 +118,9 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         guard let destination = destination(path: path) else {
             return false
         }
-        guard let path = destination.path else {
-            destination.updateState(&state)
-            tab = destination.tab
-            return true
-        }
-
-        guard let router = destination.router(), router.go(path: path)
-        else {
+        if let nested = destination.nested,
+            !nested.router.go(path: nested.path)
+        {
             return false
         }
         destination.updateState(&state)
@@ -155,14 +134,9 @@ extension TabRouter: URLRouter where Tab: FromURLTabSelection {
         guard let destination = destination(path: path) else {
             return false
         }
-        guard let path = destination.path else {
-            destination.updateState(&state)
-            tab = destination.tab
-            return true
-        }
-
-        guard let router = destination.router(), router.replace(path: path)
-        else {
+        if let nested = destination.nested,
+            !nested.router.replace(path: nested.path)
+        {
             return false
         }
         destination.updateState(&state)

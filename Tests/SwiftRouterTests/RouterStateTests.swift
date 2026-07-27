@@ -5,6 +5,55 @@ import Testing
 
 @Suite("Router State Tests")
 struct RouterStateTests {
+    @Suite("Observation Regression")
+    struct ObservationRegression {
+        struct TestState: Equatable {
+            var count = 0
+        }
+
+        enum TestTab: TabSelection {
+            typealias State = TestState
+
+            case users
+
+            struct Stack: TabStack {
+                let users = TestRoute.self
+            }
+        }
+
+        enum TestRoute: TabRoute {
+            typealias State = TestState
+            typealias Tab = TestTab
+
+            case profile
+
+            static var tab: TestTab { .users }
+        }
+
+        final class ChangeCounter: @unchecked Sendable {
+            var value = 0
+        }
+
+        @Test("Reading shared router state does not invalidate observation")
+        func readingSharedRouterStateDoesNotInvalidateObservation() {
+            let tabRouter = TabRouter(initial: TestTab.users, state: TestState())
+            let router = tabRouter.users
+            let changes = ChangeCounter()
+
+            withObservationTracking {
+                _ = router.state
+            } onChange: {
+                changes.value += 1
+            }
+
+            #expect(changes.value == 0)
+
+            router.state = TestState(count: 1)
+
+            #expect(changes.value == 1)
+        }
+    }
+
     @Suite("Value-Type State")
     struct ValueTypeState {
         @Suite("Stack Router")
@@ -60,7 +109,7 @@ struct RouterStateTests {
 
             @Test("Applies state updates when hydrate succeeds")
             func appliesStateUpdatesWhenHydrateSucceeds() {
-                let router = Router<TestRoute>(TestState())
+                let router = Router<TestRoute>(state: TestState())
 
                 #expect(
                     router.hydrate(path: "/search?q=swift&tag=ios&tag=swiftui"))
@@ -81,7 +130,7 @@ struct RouterStateTests {
             @Test("Does not commit updates when hydrate finds no route")
             func doesNotCommitUpdatesWhenHydrateFindsNoRoute() {
                 let router = Router<TestRoute>(
-                    TestState(
+                    state: TestState(
                         matchedID: "seed",
                         search: "existing",
                         tags: ["one"],
@@ -103,7 +152,7 @@ struct RouterStateTests {
                 doesNotCommitUpdatesWhenHydrateMatchesAScreenThatReturnsAnEmptyStack()
             {
                 let router = Router<TestRoute>(
-                    TestState(
+                    state: TestState(
                         matchedID: "seed",
                         search: "existing",
                         tags: ["one"],
@@ -124,7 +173,7 @@ struct RouterStateTests {
             @Test("Does not commit state updates when navigate finds no route")
             func doesNotCommitStateUpdatesWhenNavigateFindsNoRoute() {
                 let router = Router<TestRoute>(
-                    TestState(
+                    state: TestState(
                         matchedID: "seed",
                         search: "existing",
                         tags: ["one"],
@@ -146,7 +195,7 @@ struct RouterStateTests {
                 doesNotCommitStateUpdatesWhenNavigateMatchesAScreenThatReturnsAnEmptyStack()
             {
                 let router = Router<TestRoute>(
-                    TestState(
+                    state: TestState(
                         matchedID: "seed",
                         search: "existing",
                         tags: ["one"],
@@ -219,7 +268,7 @@ struct RouterStateTests {
 
             @Test("Applies state updates when hydrate succeeds")
             func appliesStateUpdatesWhenHydrateSucceeds() {
-                let router = TabRouter(TestState(), initial: TestTab.home)
+                let router = TabRouter(initial: TestTab.home, state: TestState())
 
                 #expect(router.hydrate(path: "/settings/about?sheet=true"))
                 #expect(router.tab == TestTab.settings)
@@ -238,13 +287,13 @@ struct RouterStateTests {
             @Test("Does not commit updates when hydrate finds no route")
             func doesNotCommitUpdatesWhenHydrateFindsNoRoute() {
                 let router = TabRouter(
-                    TestState(
+                    initial: TestTab.home,
+                    state: TestState(
                         matchedID: "seed",
                         search: "",
                         tags: [],
                         showSettingsSheet: false
-                    ),
-                    initial: TestTab.home
+                    )
                 )
 
                 let originalState = router.state
@@ -264,13 +313,13 @@ struct RouterStateTests {
                 doesNotCommitUpdatesWhenHydrateMatchesAScreenThatReturnsAnEmptyStack()
             {
                 let router = TabRouter(
-                    TestState(
+                    initial: TestTab.home,
+                    state: TestState(
                         matchedID: "seed",
                         search: "",
                         tags: [],
                         showSettingsSheet: false
-                    ),
-                    initial: TestTab.home
+                    )
                 )
 
                 let originalState = router.state
@@ -285,7 +334,7 @@ struct RouterStateTests {
 
             @Test("Does not commit updates when navigate finds no route")
             func doesNotCommitUpdatesWhenNavigateFindsNoRoute() {
-                let router = TabRouter(TestState(), initial: TestTab.home)
+                let router = TabRouter(initial: TestTab.home, state: TestState())
 
                 let originalState = router.state
                 let originalTab = router.tab
@@ -304,13 +353,13 @@ struct RouterStateTests {
                 doesNotCommitUpdatesWhenNavigateMatchesAScreenThatReturnsAnEmptyStack()
             {
                 let router = TabRouter(
-                    TestState(
+                    initial: TestTab.home,
+                    state: TestState(
                         matchedID: "seed",
                         search: "",
                         tags: [],
                         showSettingsSheet: false
-                    ),
-                    initial: TestTab.home
+                    )
                 )
 
                 let originalState = router.state
@@ -410,7 +459,7 @@ struct RouterStateTests {
             @Test("Applies state updates when hydrate succeeds")
             func appliesStateUpdatesWhenHydrateSucceeds() {
                 let state = TestState()
-                let router = Router<TestRoute>(state)
+                let router = Router<TestRoute>(state: state)
 
                 #expect(
                     router.hydrate(path: "/search?q=swift&tag=ios&tag=swiftui"))
@@ -436,7 +485,7 @@ struct RouterStateTests {
                     tags: ["one"],
                     showSettingsSheet: false
                 )
-                let router = Router<TestRoute>(state)
+                let router = Router<TestRoute>(state: state)
 
                 let originalState = state.snapshot
 
@@ -457,7 +506,7 @@ struct RouterStateTests {
                     tags: ["one"],
                     showSettingsSheet: false
                 )
-                let router = Router<TestRoute>(state) {
+                let router = Router<TestRoute>(state: state) {
                     TestRoute.user("seed")
                 }
 
@@ -477,7 +526,7 @@ struct RouterStateTests {
                     tags: ["one"],
                     showSettingsSheet: false
                 )
-                let router = Router<TestRoute>(state)
+                let router = Router<TestRoute>(state: state)
 
                 let originalState = state.snapshot
 
@@ -498,7 +547,7 @@ struct RouterStateTests {
                     tags: ["one"],
                     showSettingsSheet: false
                 )
-                let router = Router<TestRoute>(state)
+                let router = Router<TestRoute>(state: state)
 
                 let originalState = state.snapshot
 
@@ -583,7 +632,7 @@ struct RouterStateTests {
             @Test("Applies state updates when hydrate succeeds")
             func appliesStateUpdatesWhenHydrateSucceeds() {
                 let state = TestState()
-                let router = TabRouter(state, initial: TestTab.home)
+                let router = TabRouter(initial: TestTab.home, state: state)
 
                 #expect(router.hydrate(path: "/settings/about?sheet=true"))
                 #expect(router.tab == TestTab.settings)
@@ -603,7 +652,7 @@ struct RouterStateTests {
             func doesNotCommitUpdatesWhenHydrateFindsNoRoute() {
                 let state = TestState()
                 state.matchedID = "seed"
-                let router = TabRouter(state, initial: TestTab.home)
+                let router = TabRouter(initial: TestTab.home, state: state)
 
                 let originalState = state.snapshot
                 let originalTab = router.tab
@@ -623,7 +672,7 @@ struct RouterStateTests {
             {
                 let state = TestState()
                 state.matchedID = "seed"
-                let router = TabRouter(state, initial: TestTab.home)
+                let router = TabRouter(initial: TestTab.home, state: state)
 
                 let originalState = state.snapshot
                 let originalTab = router.tab
@@ -638,7 +687,7 @@ struct RouterStateTests {
             @Test("Does not commit updates when navigate finds no route")
             func doesNotCommitUpdatesWhenNavigateFindsNoRoute() {
                 let state = TestState()
-                let router = TabRouter(state, initial: TestTab.home)
+                let router = TabRouter(initial: TestTab.home, state: state)
 
                 let originalState = state.snapshot
                 let originalTab = router.tab
@@ -658,7 +707,7 @@ struct RouterStateTests {
             {
                 let state = TestState()
                 state.matchedID = "seed"
-                let router = TabRouter(state, initial: TestTab.home)
+                let router = TabRouter(initial: TestTab.home, state: state)
 
                 let originalState = state.snapshot
                 let originalTab = router.tab

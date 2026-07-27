@@ -19,9 +19,16 @@ Use this skill when the user wants to:
 
 Prefer one stack router for the app, or one tab router with one stack router per tab. Do not model arbitrary nested stack routers.
 
-Use enums for `Route` types and struct types for state unless a concrete need suggests otherwise.
+Use enums for `Route` types. Use struct types for router state by default.
+Represent subpaths as enum cases with associated route values. A simple detail path can use a simple associated value, like `case user(id: String)`. For true nested paths, use nested route enums, like `case users(UsersRoute)`. Define small nested enums inside the parent route when they are simple enough; otherwise move them to separate route types. If one nested route enum is external, use that style consistently across the app instead of mixing inline and external route enums. When URL parsing is needed, define nested route enums outside the root enum so `from(route:)` and `into(route:)` stay focused and composable.
+When state needs reference semantics, use an `@Observable` class.
+Never use a plain class for router state.
+State shared between a `TabRouter` and its tab stack routers is reactive even when the state is a struct; do not choose class state just to make cross-router state updates visible.
+Reference semantics and observability are separate concerns.
 
 For tabbed apps, use `TabSelection` for the selected tab and `TabRoute` for routes owned by a specific tab.
+
+Adopt SwiftRouter incrementally. Do not add router state unless a route, view, sheet, or URL needs shared state. Do not add `FromURLRoute` or `FromURLTabSelection` unless deep linking or string-path navigation is requested. Do not add `IntoURLRoute` or `IntoURLTabSelection` unless URL generation is needed.
 
 ## Stack Routers
 
@@ -31,7 +38,7 @@ The router initializer uses a result builder, so you can return one route or mul
 
 ```swift
 let router = Router<AppRoute>()
-let statefulRouter = Router<AppRouteWithState>(.init())
+let statefulRouter = Router<AppRouteWithState>(state: .init())
 ```
 
 Prefer starting with an empty stack unless you intentionally need initial routes.
@@ -50,7 +57,7 @@ Like `Router`, the default state for a tab router is `Void`, so state can be omi
 
 ```swift
 let tabRouter = TabRouter(initial: AppTab.home)
-let statefulTabRouter = TabRouter(AppTab.State(), initial: AppTab.home)
+let statefulTabRouter = TabRouter(initial: AppTab.home, state: AppTab.State())
 
 tabRouter.users.push(.add)
 ```
@@ -58,6 +65,7 @@ tabRouter.users.push(.add)
 Stack routers are accessed through dynamic member lookup, like `tabRouter.users`. Those router instances are cached, so repeated access to the same tab stack returns the same `Router`.
 
 State is shared through those stack routers, so `tabRouter.state` and `tabRouter.users.state` read and write the same underlying state.
+This sharing is reactive for struct state and `@Observable` class state.
 
 ## Root Route
 
@@ -88,6 +96,8 @@ Create the router as state at the root of the feature or app, then add it as env
 For tabbed apps, let stack views access the tab router itself from environment. If needed, you can also pass the stack router as environment to the matching tab item.
 
 Prefer defining app routes in `Routes.swift`, and putting screens in a `Screens/` directory.
+Prefer a root-level `Router.swift` file for all route/tab/router type wiring. Compose the actual app views in `ContentView` or the app's view entry point.
+Group screens by navigation area. For tabs, put the tab entry view directly under `Screens/`, such as `Screens/UsersTabView.swift`. If the tab has a nested stack, put pushed stack screens in a matching directory, such as `Screens/Users/UsersListView.swift` and `Screens/Users/UsersDetailView.swift`. Tabs without a nested stack can stay as a single file directly under `Screens/`. Use the same directory pattern for non-tab stack hierarchies.
 
 ```swift
 // Routes.swift
@@ -119,7 +129,7 @@ enum UsersRoute: TabRoute {
 ```swift
 // ContentView.swift
 struct ContentView: View {
-    @State private var router = TabRouter(AppTab.State(), initial: AppTab.home)
+    @State private var router = TabRouter(initial: AppTab.home, state: AppTab.State())
 
     var body: some View {
         TabView(selection: $router.tab) {
@@ -191,6 +201,8 @@ For stack routes, use `FromURLRoute` or `IntoURLRoute` when only one direction i
 `screen` callbacks use a result builder, so a match can return one route or multiple routes.
 Returning multiple routes from a match only matters when `hydrate` is replacing the stack, or when hydrate runs on an empty stack.
 Use `Self.case(...)` in the result builder callbacks.
+Use the `(RouteURLInput, rest: String)` screen overload for path-prefix or catch-all parsing.
+Use `screen(..., join:)` to delegate to another route type; set `fallback: true` only when the parent route should still match if the child route does not.
 
 ```swift
 enum AppRoute: Route {
@@ -206,6 +218,7 @@ enum UsersRoute: Route {
 
 Use `FromURLRoute` to parse URLs into routes and state updates.
 Use `route.update` inside `from` to mutate state from matched input, and read path/query values from `RouteURLInput`.
+Use `url.param("id", fallback:)`, `url.query("q", fallback:)`, and `url.query(all: "tag")` for path params, single query values, and repeated query values.
 
 ```swift
 extension AppRoute: FromURLRoute {
@@ -250,6 +263,7 @@ enum AppRoute: FromURLRoute {
 
 Use `IntoURLRoute` to generate URLs from routes.
 Read state from `route.state` inside `into` when URL generation depends on state, and write query values with `route.query(...)`.
+Use `route.query("tag", values)` for repeated query items, and `replace: true` when a later call should replace earlier values for the same key.
 
 ```swift
 extension AppRoute: IntoURLRoute {
@@ -299,6 +313,7 @@ enum UsersRoute: TabRoute {
 
 Use `FromURLTabSelection` to parse URLs into tab selection and nested stack routes.
 Use `route.update` inside `from` to mutate state from matched input, and read path/query values from `RouteURLInput`.
+Use the tab handler overload when the selected tab depends on parsed input instead of a fixed tab value.
 
 ```swift
 extension AppTab: FromURLTabSelection {
@@ -352,3 +367,4 @@ extension UsersRoute: IntoURLRoute {
 Routers can also do string navigation with `push(path:)`, `go(path:)`, and `replace(path:)`.
 
 Use `hydrate(url:)` or `hydrate(path:)` for deep links. Custom schemes treat the URL host as part of the route path; universal links use the URL path and query.
+Use `hydrate(path:replace: true)` or `hydrate(url:replace: true)` when a deep link should replace the current stack instead of pushing onto it.

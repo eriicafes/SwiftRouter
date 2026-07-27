@@ -1,6 +1,6 @@
 # SwiftRouter
 
-`SwiftRouter` is a lightweight Swift package for driving SwiftUI navigation with typed routes, shared app state, and deep linking.
+`swift-router` is a lightweight Swift package for SwiftUI navigation with typed routes, shared app state, and deep linking.
 
 ## Features
 
@@ -19,11 +19,11 @@
 
 ## Installation
 
-Add `SwiftRouter` to your `Package.swift` dependencies:
+Add `swift-router` to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/eriicafes/SwiftRouter.git", from: "0.1.1")
+    .package(url: "https://github.com/eriicafes/swift-router.git", from: "0.1.1")
 ]
 ```
 
@@ -31,17 +31,19 @@ Then include it in your target:
 
 ```swift
 .target(
-    name: "YourApp",
-    dependencies: ["SwiftRouter"]
+    name: "MyApp",
+    dependencies: [
+        .product(name: "SwiftRouter", package: "swift-router")
+    ]
 )
 ```
 
 ## AI Skills
 
-Install the SwiftRouter agent skills with:
+Install the `swift-router` agent skills with:
 
 ```sh
-npx skills add eriicafes/SwiftRouter
+npx skills add eriicafes/swift-router
 ```
 
 ## Core Concepts
@@ -59,6 +61,23 @@ enum AppRoute: Route {
 }
 ```
 
+### Subroutes
+
+Subroutes can be represented as enum cases with associated route values:
+
+```swift
+enum AppRoute: Route {
+    case settings
+    case users(UsersRoute)
+    case posts(PostsRoute)
+}
+
+enum UsersRoute: Route {
+    case list
+    case detail(id: String)
+}
+```
+
 ### Tab Selection
 
 A `TabSelection` is the type that represents the selected tab in a `TabRouter`.
@@ -73,6 +92,7 @@ enum AppTab: TabSelection {
 ### Tab Route
 
 A `TabRoute` is a route that belongs to a specific tab.
+When using tabs, define the routes with `TabRoute` instead of `Route`.
 
 ```swift
 enum UsersRoute: TabRoute {
@@ -87,7 +107,7 @@ enum UsersRoute: TabRoute {
 
 ### Root Route Data
 
-The base view should not be one of your route cases, since it is the view rendered when the stack is empty.
+The base view is usually not one of your route cases, since it is the view rendered when the stack is empty.
 
 However, if you do represent the root as a route case, implement `data(route:)` on the route and mark that case as the root so its data can be exposed through `router.data`. See [Root Route in Views](#root-route-in-views) for how to structure the view around that pattern. Root data is mainly useful when parsing from a URL with [FromURLRoute](#parse-from-url) and that root route carries dynamic data for the base view.
 
@@ -110,7 +130,7 @@ enum AppRoute: Route {
 If the first route in the initial stack returns `.data(root: true, value)`, SwiftRouter removes that route from `navigationPath` and stores it separately as the root route.
 
 ```swift
-let router = Router<AppRoute>(.init()) {
+let router = Router<AppRoute>(state: .init()) {
     AppRoute.home(title: "Dashboard")
 }
 
@@ -124,6 +144,8 @@ router.data
 
 The default state for a route is `Void`. If the route `State` is `Void`, it can be omitted when creating the router. If the route has its own state type, pass that state when creating the router.
 
+Router state is commonly modeled as a struct. When reference semantics are useful, an `@Observable` class keeps SwiftUI updates integrated.
+
 ```swift
 // No state
 enum AppRoute: Route {
@@ -133,7 +155,7 @@ enum AppRoute: Route {
 
 let router = Router<AppRoute>()
 
-// State
+// With state
 enum StatefulAppRoute: Route {
     struct State {
         var showSheet = false
@@ -143,7 +165,7 @@ enum StatefulAppRoute: Route {
     case users(id: String)
 }
 
-let stateRouter = Router<StatefulAppRoute>(.init())
+let stateRouter = Router<StatefulAppRoute>(state: .init())
 ```
 
 Available properties:
@@ -158,6 +180,8 @@ Available properties:
 A tab router is initialized with an initial tab.
 
 Like `Router`, the default state for a tab selection is `Void`. If the tab selection `State` is `Void`, it can be omitted when creating the tab router. If the tab selection has its own state type, pass that state when creating the router.
+
+State is shared through tab stack routers, so `tabRouter.state` and `tabRouter.users.state` read and write the same underlying state.
 
 If a tab has stacks, define a `Stack` type conforming to `TabStack` and add a property for each route type.
 
@@ -184,7 +208,7 @@ enum UsersRoute: TabRoute {
     static var tab: AppTab { .users }
 }
 
-let router = TabRouter(.init(), initial: AppTab.home)
+let router = TabRouter(initial: AppTab.home, state: .init())
 router.tab = .users
 router.users.push(.add)
 ```
@@ -200,7 +224,7 @@ You can mutate `navigationPath` directly, but SwiftRouter provides useful method
 `push(_:)` appends a route to the top of the stack:
 
 ```swift
-let router = Router<AppRoute>(.init())
+let router = Router<AppRoute>(state: .init())
 
 router.push(.users(id: "42"))
 router.push(.users(id: "100"))
@@ -214,7 +238,7 @@ router.navigationPath
 `replace(_:)` swaps the current route with a new route:
 
 ```swift
-let router = Router<AppRoute>(.init()) {
+let router = Router<AppRoute>(state: .init()) {
     AppRoute.users(id: "42")
 }
 
@@ -228,7 +252,7 @@ router.navigationPath
 `go(to:)` looks for the route in the current stack. If it finds it, everything after that route is removed. If it does not find it, the route is pushed:
 
 ```swift
-let router = Router<AppRoute>(.init()) {
+let router = Router<AppRoute>(state: .init()) {
     AppRoute.users(id: "42")
     AppRoute.users(id: "100")
 }
@@ -247,7 +271,7 @@ router.navigationPath
 `back()` removes the current route if the stack is not empty:
 
 ```swift
-let router = Router<AppRoute>(.init()) {
+let router = Router<AppRoute>(state: .init()) {
     AppRoute.users(id: "42")
     AppRoute.users(id: "100")
 }
@@ -257,10 +281,10 @@ router.navigationPath
 // [.users(id: "42")]
 ```
 
-`back(root: true)` clears the pushed stack and returns to the root route:
+`back(root: true)` clears the entire stack and returns to the root route:
 
 ```swift
-let router = Router<AppRoute>(.init()) {
+let router = Router<AppRoute>(state: .init()) {
     AppRoute.users(id: "42")
     AppRoute.users(id: "100")
 }
@@ -277,7 +301,7 @@ Path-based navigation parses a path into a route first. If parsing succeeds, sta
 `push(path:)` appends the matched route:
 
 ```swift
-let router = Router<UsersRoute>(.init())
+let router = Router<UsersRoute>(state: .init())
 
 router.push(path: "/42")
 router.navigationPath
@@ -287,7 +311,7 @@ router.navigationPath
 `go(path:)` walks back to a matched route if it already exists, or pushes it if it does not:
 
 ```swift
-let router = Router<UsersRoute>(.init())
+let router = Router<UsersRoute>(state: .init())
 router.push(.user(id: "42"))
 router.push(.search("swift"))
 
@@ -299,7 +323,7 @@ router.navigationPath
 `replace(path:)` swaps the current route with the matched route:
 
 ```swift
-let router = Router<UsersRoute>(.init())
+let router = Router<UsersRoute>(state: .init())
 router.push(.user(id: "42"))
 
 router.replace(path: "/search?q=swift")
@@ -325,7 +349,7 @@ router.users.route
 Hydrate sets the router from a parsed path. When `replace` is `true`, it replaces the current stack. When `replace` is `false` and the router already has a current route, it pushes the matched destination.
 
 ```swift
-let router = Router<UsersRoute>(.init())
+let router = Router<UsersRoute>(state: .init())
 
 router.hydrate(path: "/42")
 router.navigationPath
@@ -339,7 +363,7 @@ router.navigationPath
 In SwiftUI you would usually call it from `onOpenURL`:
 
 ```swift
-@State private var router = Router<UsersRoute>(.init())
+@State private var router = Router<UsersRoute>(state: .init())
 
 var body: some View {
     UsersView()
@@ -487,7 +511,7 @@ You can conform your routes in one direction or both:
 - Use `IntoURLRoute` or `IntoURLTabSelection` if your route only needs to turn routes into URLs.
 - Use `URLRoute` or `URLTabSelection` if your route needs to do both.
 
-Prefer putting URL conformances in extensions so the route definition stays focused on the route shape.
+URL conformances can be placed in extensions so the route definition stays focused on the route shape.
 
 ### Parse From URL
 

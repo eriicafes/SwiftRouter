@@ -79,7 +79,7 @@ struct RouterFromURLTests {
 
         @Test("Decodes query items and preserves nested route matches")
         func decodesQueryItemsAndPreservesNestedRouteMatches() {
-            let router = Router<TestRoute>(TestState())
+            let router = Router<TestRoute>(state: TestState())
 
             #expect(
                 router.hydrate(path: "/filters?q=swift&tag=ios&tag=swiftui"))
@@ -101,7 +101,7 @@ struct RouterFromURLTests {
 
         @Test("Matches a joined route at its base path")
         func matchesAJoinedRouteAtItsBasePath() {
-            let router = Router<TestRoute>(TestState())
+            let router = Router<TestRoute>(state: TestState())
 
             #expect(router.hydrate(path: "/users"))
             #expect(router.route == .users(.home))
@@ -116,7 +116,7 @@ struct RouterFromURLTests {
 
         @Test("Matches a route that consumes the remaining path")
         func matchesARouteThatConsumesTheRemainingPath() {
-            let router = Router<TestRoute>(TestState())
+            let router = Router<TestRoute>(state: TestState())
 
             #expect(router.hydrate(path: "/settings/about/info"))
             #expect(router.route == .settings("/about/info"))
@@ -128,7 +128,7 @@ struct RouterFromURLTests {
         func
             hydratesAllMatchedRoutesWhenAScreenReturnsTwoRoutesAndTheStackIsEmpty()
         {
-            let router = Router<TestRoute>(TestState())
+            let router = Router<TestRoute>(state: TestState())
 
             #expect(router.hydrate(path: "/shortcut"))
             #expect(
@@ -152,7 +152,7 @@ struct RouterFromURLTests {
         func
             pushesOntoTheStackWhenHydrateIsSetNotToReplaceAndAPathAlreadyExists()
         {
-            let router = Router<TestRoute>(TestState()) {
+            let router = Router<TestRoute>(state: TestState()) {
                 TestRoute.users(.user("42"))
             }
 
@@ -178,7 +178,7 @@ struct RouterFromURLTests {
         func
             pushesOnlyTheLastMatchedRouteWhenHydrateIsSetNotToReplaceAndAScreenReturnsTwoRoutes()
         {
-            let router = Router<TestRoute>(TestState()) {
+            let router = Router<TestRoute>(state: TestState()) {
                 TestRoute.users(.home)
             }
 
@@ -200,7 +200,7 @@ struct RouterFromURLTests {
 
         @Test("Replaces the stack when hydrate is set to replace")
         func replacesTheStackWhenHydrateIsSetToReplace() {
-            let router = Router<TestRoute>(TestState()) {
+            let router = Router<TestRoute>(state: TestState()) {
                 TestRoute.users(.user("42"))
             }
 
@@ -215,7 +215,7 @@ struct RouterFromURLTests {
         func
             pushesOnlyTheLastMatchedRouteWhenNavigateMatchesAScreenThatReturnsTwoRoutes()
         {
-            let router = Router<TestRoute>(TestState())
+            let router = Router<TestRoute>(state: TestState())
 
             #expect(router.push(path: "/shortcut"))
             #expect(router.navigationPath == [.filters("swift", ["ios"])])
@@ -231,7 +231,7 @@ struct RouterFromURLTests {
 
         @Test("Leaves state and stack untouched when hydration fails")
         func leavesStateUntouchedWhenHydrationFails() {
-            let router = Router<TestRoute>(TestState()) {
+            let router = Router<TestRoute>(state: TestState()) {
                 TestRoute.users(.user("existing"))
             }
             router.state = TestState(
@@ -250,7 +250,7 @@ struct RouterFromURLTests {
 
         @Test("Hydrates custom-scheme URLs using the host and ignores the host for universal links")
         func hydratesCustomSchemeURLsAndUniversalLinks() {
-            let router = Router<TestRoute>(TestState())
+            let router = Router<TestRoute>(state: TestState())
 
             #expect(router.hydrate(url: URL(string: "myapp://users/42")!))
             #expect(router.route == .users(.user("42")))
@@ -344,7 +344,7 @@ struct RouterFromURLTests {
         @Test(
             "Hydrates nested tab routes and preserves the nested router stack")
         func hydratesNestedTabRoutes() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
 
             #expect(
                 router.hydrate(
@@ -371,7 +371,7 @@ struct RouterFromURLTests {
         func
             pushesOntoTheNestedStackWhenHydrateIsSetNotToReplaceAndATabPathAlreadyExists()
         {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
 
             router.tab = .users
             router.users.push(.user("42"))
@@ -395,7 +395,7 @@ struct RouterFromURLTests {
 
         @Test("Replaces the selected tab stack when hydrate is set to replace")
         func replacesTheSelectedTabStackWhenHydrateIsSetToReplace() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
 
             #expect(router.hydrate(path: "/users/42"))
             #expect(
@@ -409,7 +409,7 @@ struct RouterFromURLTests {
             "Reuses stored nested routers when hydrating and navigating within a tab"
         )
         func reusesStoredNestedRouters() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
 
             #expect(router.hydrate(path: "/users/42"))
             #expect(router.push(path: "/users/search?q=swift&tag=ios"))
@@ -432,7 +432,7 @@ struct RouterFromURLTests {
             "Leaves tab selection untouched when hydration fails to match a route"
         )
         func leavesTabSelectionUntouchedWhenHydrationFailsToMatchARoute() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
 
             #expect(!router.hydrate(path: "/missing"))
             #expect(router.tab == TestTab.home)
@@ -445,7 +445,7 @@ struct RouterFromURLTests {
             "Leaves tab selection, nested stack, and state untouched when tab navigation fails"
         )
         func leavesTabStateUntouchedWhenNavigationFails() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
             #expect(router.hydrate(path: "/users/42"))
 
             let originalTab = router.tab
@@ -462,7 +462,7 @@ struct RouterFromURLTests {
 
         @Test("Hydrates custom-scheme tab URLs using the host and ignores the host for universal links")
         func hydratesCustomSchemeTabURLsAndUniversalLinks() {
-            let router = TabRouter(TestState(), initial: TestTab.home)
+            let router = TabRouter(initial: TestTab.home, state: TestState())
 
             #expect(router.hydrate(url: URL(string: "myapp://users/42")!))
             #expect(router.tab == .users)

@@ -1,0 +1,48 @@
+name: CI
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+  release:
+    name: Version Releases
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' }}
+    needs: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+
+      - run: npm ci
+
+      - name: Create Release Pull Request
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: npx changeset tag
+
+      - name: Push Release Tags
+        if: steps.changesets.outputs.published == 'true'
+        run: git push --follow-tags
