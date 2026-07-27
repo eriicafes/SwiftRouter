@@ -23,7 +23,7 @@ Add `swift-router` to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/eriicafes/swift-router.git", from: "0.1.1")
+    .package(url: "https://github.com/eriicafes/swift-router.git", from: "0.2.0")
 ]
 ```
 
